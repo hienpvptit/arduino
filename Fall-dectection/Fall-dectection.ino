@@ -1,164 +1,137 @@
+/*-- Heart Sensor -- */
 #include <Wire.h>
-
-#define BUZZ 4
-
-// MAX30100
 #include "MAX30100_PulseOximeter.h"
-#define REPORTING_PERIOD_MS 1000
-PulseOximeter max30100;
 
-void Heart_Init()
+PulseOximeter pox;
+
+void Pox_Begin()
 {
-	Serial.print("Initializing pulse oximeter..");
-	if (!max30100.begin()) {
-        Serial.println("FAILED");
-        for(;;);
-    } else {
-        Serial.println("SUCCESS");
-    }
-    max30100.setIRLedCurrent(MAX30100_LED_CURR_24MA); 
+  Serial.print("Initializing pulse oximeter..");
+  if (!pox.begin()) {
+    Serial.println("FAILED");
+    for (;;);
+  } else {
+    Serial.println("SUCCESS");
+  }
+  pox.setIRLedCurrent(MAX30100_LED_CURR_24MA);    // Setup current of sensor
 }
 
 int Heart_Read()
 {
-	max30100.update();
-	return (int)max30100.getHeartRate();
+  return pox.getHeartRate();    // Return value of heart rate
 }
-
-// MPU6050
+/*--------------------------------------------*/
+// MPU
 #include <MPU6050.h>
 MPU6050 mpu;
-boolean freefallDetected = false;
-void MPU_Init()
+bool FreeFall = false;
+
+void MPU_Begin()
 {
-	Serial.println("Initialize MPU6050");
-	while(!mpu.begin(MPU6050_SCALE_2000DPS, MPU6050_RANGE_16G))
-	{
-		Serial.println("Could not find a valid MPU6050 sensor, check wiring!");
-		delay(500);
-	}
-	mpu.setAccelPowerOnDelay(MPU6050_DELAY_3MS);
-	mpu.setIntFreeFallEnabled(true);
-	mpu.setIntZeroMotionEnabled(false);
-	mpu.setIntMotionEnabled(false);
-	mpu.setDHPFMode(MPU6050_DHPF_5HZ);
-	mpu.setFreeFallDetectionThreshold(10);
-	mpu.setFreeFallDetectionDuration(2);  
-	MPU_checkSettings();
-	attachInterrupt(1, Fall_INT, RISING);
-}
-
-void Fall_INT()
-{
-	freefallDetected = true;
-	Serial.println("Fall");
- digitalWrite(BUZZ, HIGH);
-}
-
-void MPU_checkSettings()
-{
-  Serial.println();
-  
-  Serial.print(" * Sleep Mode:                ");
-  Serial.println(mpu.getSleepEnabled() ? "Enabled" : "Disabled");
-
-  Serial.print(" * Motion Interrupt:     ");
-  Serial.println(mpu.getIntMotionEnabled() ? "Enabled" : "Disabled");
-
-  Serial.print(" * Zero Motion Interrupt:     ");
-  Serial.println(mpu.getIntZeroMotionEnabled() ? "Enabled" : "Disabled");
-
-  Serial.print(" * Free Fall Interrupt:       ");
-  Serial.println(mpu.getIntFreeFallEnabled() ? "Enabled" : "Disabled");
-
-  Serial.print(" * Free Fal Threshold:          ");
-  Serial.println(mpu.getFreeFallDetectionThreshold());
-
-  Serial.print(" * Free FallDuration:           ");
-  Serial.println(mpu.getFreeFallDetectionDuration());
-  
-  Serial.print(" * Clock Source:              ");
-  switch(mpu.getClockSource())
+  while (!mpu.begin(MPU6050_SCALE_2000DPS, MPU6050_RANGE_16G))
   {
-    case MPU6050_CLOCK_KEEP_RESET:     Serial.println("Stops the clock and keeps the timing generator in reset"); break;
-    case MPU6050_CLOCK_EXTERNAL_19MHZ: Serial.println("PLL with external 19.2MHz reference"); break;
-    case MPU6050_CLOCK_EXTERNAL_32KHZ: Serial.println("PLL with external 32.768kHz reference"); break;
-    case MPU6050_CLOCK_PLL_ZGYRO:      Serial.println("PLL with Z axis gyroscope reference"); break;
-    case MPU6050_CLOCK_PLL_YGYRO:      Serial.println("PLL with Y axis gyroscope reference"); break;
-    case MPU6050_CLOCK_PLL_XGYRO:      Serial.println("PLL with X axis gyroscope reference"); break;
-    case MPU6050_CLOCK_INTERNAL_8MHZ:  Serial.println("Internal 8MHz oscillator"); break;
+    Serial.println("Could not find a valid MPU6050 sensor, check wiring!");
+    delay(500);
   }
-  
-  Serial.print(" * Accelerometer:             ");
-  switch(mpu.getRange())
-  {
-    case MPU6050_RANGE_16G:            Serial.println("+/- 16 g"); break;
-    case MPU6050_RANGE_8G:             Serial.println("+/- 8 g"); break;
-    case MPU6050_RANGE_4G:             Serial.println("+/- 4 g"); break;
-    case MPU6050_RANGE_2G:             Serial.println("+/- 2 g"); break;
-  }  
-
-  Serial.print(" * Accelerometer offsets:     ");
-  Serial.print(mpu.getAccelOffsetX());
-  Serial.print(" / ");
-  Serial.print(mpu.getAccelOffsetY());
-  Serial.print(" / ");
-  Serial.println(mpu.getAccelOffsetZ());
-
-  Serial.print(" * Accelerometer power delay: ");
-  switch(mpu.getAccelPowerOnDelay())
-  {
-    case MPU6050_DELAY_3MS:            Serial.println("3ms"); break;
-    case MPU6050_DELAY_2MS:            Serial.println("2ms"); break;
-    case MPU6050_DELAY_1MS:            Serial.println("1ms"); break;
-    case MPU6050_NO_DELAY:             Serial.println("0ms"); break;
-  }  
-  
-  Serial.println();
+  mpu.setAccelPowerOnDelay(MPU6050_DELAY_3MS);
+  mpu.setIntFreeFallEnabled(true);
+  mpu.setIntZeroMotionEnabled(false);
+  mpu.setIntMotionEnabled(false);
+  mpu.setDHPFMode(MPU6050_DHPF_5HZ);
+  mpu.setFreeFallDetectionThreshold(50);
+  mpu.setFreeFallDetectionDuration(2);
+  attachInterrupt(1, FALL_INT, RISING);
 }
 
-void MPU_Run()
+void FALL_INT()
 {
-	Vector rawAccel = mpu.readRawAccel();
-	Activites act = mpu.readActivites();
+  Serial.println("Fall");
+  FreeFall = true;
 }
 
+/*--------------------------------------------*/
 // Oled
+#include <SPI.h>
+#include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#define SCREEN_WIDTH 128 // OLED display width, in pixels
-#define SCREEN_HEIGHT 32 // OLED display height, in pixels
-#define OLED_RESET     4 // Reset pin # (or -1 if sharing Arduino reset pin)
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+Adafruit_SSD1306 display(128, 32);
 
-void Oled_Init()
+void Oled_Begin()
 {
-	if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) // Address 0x3C for 128x32
-	{ 
-		Serial.println(F("SSD1306 allocation failed"));
-		for(;;); // Don't proceed, loop forever
-	}
-	display.display();
-	delay(2000); // Pause for 2 seconds
-	display.clearDisplay();
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3C for 128x32
+    Serial.println("SSD1306 allocation failed");
+    while (1) {};
+  }
+  display.display();
+  delay(1000);
+  display.setTextSize(1);      // Normal 1:1 pixel scale
+  display.setTextColor(WHITE); // Draw white text
+  display.clearDisplay();
+  display.display();
+  delay(1000);
 }
 
+static const unsigned char PROGMEM heart_bmp [] = {
+  0x10, 0x00, 0x10, 0x00,
+  0x00, 0x00, 0x0F, 0x78, 0x19, 0xCC, 0x30, 0x86, 0x24, 0x02, 0x0A, 0x22, 0xF1, 0x52, 0x80, 0x86,
+  0x18, 0x0C, 0x0C, 0x18, 0x06, 0x30, 0x03, 0x60, 0x01, 0xC0, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00
+};
 
-//---------------------------
+static const unsigned char PROGMEM temp_bmp [] = {
+  0x10, 0x00, 0x10, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x01, 0x80, 0x03, 0xC0, 0xE7, 0xE0, 0x06, 0x60, 0xEC, 0x30, 0x0C, 0x30,
+  0xCC, 0x30, 0x1C, 0x38, 0x38, 0x1C, 0x70, 0x0E, 0x60, 0x06, 0x60, 0x06, 0x7F, 0xFE, 0x3F, 0xFC
+};
+
 void setup()
 {
-	Serial.begin(115200);
-	pinMode(BUZZ, OUTPUT);
-  digitalWrite(BUZZ, LOW);
-	//Oled_Init();
-	
-	Heart_Init();
-	
-	MPU_Init();
+  Serial.begin(115200);
+  Wire.begin();
+
+  Oled_Begin();
+
+  Pox_Begin();
+
+  MPU_Begin();
+
 }
 
+
+long last = 0;
 void loop()
 {
-	
+  pox.update();
+  if (millis() - last > 1000)
+  {
+    display.clearDisplay();
+    display.setCursor(0, -2);
+    display.drawBitmap(0, -2, heart_bmp, 16, 16, 1);
+    display.setCursor(24, 0);
+    display.setTextSize(2);
+    display.print(String(Heart_Read()));
+    display.setTextSize(1);
+    display.print("bpm");
+    
+    display.setCursor(0, 14);
+    display.drawBitmap(0, 14, temp_bmp, 16, 16, 1);
+    display.setCursor(24, 17);
+    display.setTextSize(2);
+    display.print(String((int)(analogRead(A3)/1024.0 * 100)));
+    display.setTextSize(1);
+    display.print("o");
+    display.setTextSize(2);
+    display.print("C");
+
+    display.display();
+    last = millis();
+  }
+
+  if(FreeFall==true)
+  {
+    Serial.println("Stop");
+    while(1){};  
+  }
+
 }
