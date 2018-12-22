@@ -153,6 +153,7 @@ int heart_rate_tmp[10];
 int heart_rate = 0;
 int i_h = 0;
 int count_fail = 0;
+int temperature = 0;
 
 void loop()
 {
@@ -203,7 +204,9 @@ void loop()
     display.drawBitmap(0, 14, temp_bmp, 16, 16, 1);
     display.setCursor(24, 17);
     display.setTextSize(2);
-    display.print("  " + String((int)(analogRead(A3) / 1024.0 * 100)));
+
+    temperature = 5.0*analogRead(A3)*100.0/1024.0;
+    display.print("  " + String(temperature));
     display.setTextSize(1);
     display.print("o");
     display.setTextSize(2);
